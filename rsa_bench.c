@@ -43,7 +43,7 @@ void bench_sign(int key_size, int data_size, int iterations, BenchmarkResult* re
     RAND_bytes(data, data_size);
 
     RSAArg arg = { .key_size = key_size, .data_size = data_size, .data = data, .pkey = pkey };
-    time_total_delta(sign_func, &arg, iterations, result);
+    time_per_iteration(sign_func, &arg, iterations, result);
 
     free(data);
     EVP_PKEY_free(pkey); // Frees rsa too
@@ -74,7 +74,7 @@ void bench_verify(int key_size, int data_size, int iterations, BenchmarkResult* 
     RAND_bytes(data, data_size);
 
     RSAArg arg = { .key_size = key_size, .data_size = data_size, .data = data, .pkey = pkey };
-    time_total_delta(verify_func, &arg, iterations, result);
+    time_per_iteration(verify_func, &arg, iterations, result);
 
     free(data);
     EVP_PKEY_free(pkey);
