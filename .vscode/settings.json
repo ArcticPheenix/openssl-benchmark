@@ -1,3 +1,8 @@
 {
-    "C_Cpp.default.compilerPath": "/usr/bin/gcc"
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc",
+    "files.associations": {
+        "unistd.h": "c",
+        "fcntl.h": "c",
+        "stat.h": "c"
+    }
 }

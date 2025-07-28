@@ -5,3 +5,4 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+void bench_keygen(int key_size, int iterations);
