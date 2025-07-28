@@ -1,6 +1,8 @@
 #ifndef TIMING_H
 #define TIMING_H
 
+#include <linux/time.h>
+
 typedef struct {
     double avg_time_ms;
     double ops_per_sec;

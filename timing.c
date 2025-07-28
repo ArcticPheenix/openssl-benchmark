@@ -45,12 +45,12 @@ void time_per_iteration(void (*func)(void*), void* arg, int iterations, Benchmar
     result->avg_time_ms = (sum / iterations) / 1e6; // Convert from ns to ms
     result->ops_per_sec = iterations / (sum / 1e9); // Convert from ns to ops per second
     result->min_time_ms = min / 1e6; // Convert from ns to ms
-    result->max_time_ms = max / 1e6; // Convert from ns to
+    result->max_time_ms = max / 1e6; // Convert from ns to ms
     if (iterations > 1) {
         double mean = sum / iterations;
-        result->std_dev_ms = sqrt((sum_squares / iterations) - mean * mean) / (iterations - 1) / 1e6;
+        result->std_dev_ms = sqrt((sum_squares / iterations - mean * mean) / (iterations - 1)) / 1e6;
     } else {
-        result ->std_dev_ms = 0.0; // No standard deviation for a single iteration
+        result->std_dev_ms = 0.0; // No standard deviation for a single iteration
     }
     free(deltas);
 }

@@ -1,14 +1,13 @@
 #ifndef RSA_BENCH_H
 #define RSA_BENCH_H
 #include "timing.h"
-#include <openssl/rsa.h>
+#include <openssl/evp.h>
 
 // Structure to hold RSA benchmark functions
 typedef struct {
     int key_size; // RSA key size in bits
     int data_size; // Size of data to sign/verify in bytes
     unsigned char* data; // Data to be signed or verified
-    RSA* rsa; // RSA key pair
     EVP_PKEY* pkey; // EVP key for signing/verification
 } RSAArg;
 
