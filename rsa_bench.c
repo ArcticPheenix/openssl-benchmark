@@ -1,5 +1,6 @@
 #include "rsa_bench.h"
 #include <openssl/evp.h>
+#include <openssl/rsa.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #include <stdlib.h>

@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <linux/time.h>
+#include <time.h>
 
 // Helper function to convert time differential to nanoseconds
 static double timespec_diff_ns(struct timespec* start, struct timespec* end) {

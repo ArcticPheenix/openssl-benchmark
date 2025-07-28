@@ -3,6 +3,7 @@
     "files.associations": {
         "unistd.h": "c",
         "fcntl.h": "c",
-        "stat.h": "c"
+        "stat.h": "c",
+        "evp.h": "c"
     }
 }
