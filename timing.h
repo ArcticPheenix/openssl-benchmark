@@ -1,6 +1,5 @@
 #ifndef TIMING_H
 #define TIMING_H
-#include <time.h>
 
 typedef struct {
     double avg_time_ms;
