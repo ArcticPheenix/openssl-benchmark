@@ -46,7 +46,7 @@ void bench_sign(int key_size, int data_size, int iterations, BenchmarkResult* re
     time_per_iteration(sign_func, &arg, iterations, result);
 
     free(data);
-    EVP_PKEY_free(pkey); // Frees rsa too
+    EVP_PKEY_free(pkey); // Frees RSA too
     BN_free(e);
 }
 
