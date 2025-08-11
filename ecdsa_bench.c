@@ -96,7 +96,6 @@ static EVP_PKEY* generate_ecdsa_key(const char* curve_name) {
         EVP_PKEY_CTX_free(pctx);
         return NULL;
     }
-    // Verify key can sign
     if (!EVP_PKEY_can_sign(pkey)) {
         fprintf(stderr, "Key for %s cannot be used for signing\n", curve_name);
         EVP_PKEY_free(pkey);
@@ -138,8 +137,6 @@ static void ecdsa_sign_func(void* arg) {
         ERR_print_errors_fp(stderr);
         return;
     }
-    size_t sig_len;
-    unsigned char sig[160]; // Sufficient for ECDSA (P-521 max ~132 bytes)
     // Seed RNG explicitly
     unsigned char seed[32];
     if (RAND_bytes(seed, 32) <= 0) {
@@ -155,12 +152,34 @@ static void ecdsa_sign_func(void* arg) {
         EVP_MD_CTX_free(ctx);
         return;
     }
-    if (EVP_DigestSign(ctx, sig, &sig_len, ecdsa_arg->data, ecdsa_arg->data_size) <= 0) {
-        fprintf(stderr, "EVP_DigestSign failed for %s\n", ecdsa_arg->curve_name);
+    // Get signature size
+    size_t sig_len;
+    if (EVP_DigestSignUpdate(ctx, ecdsa_arg->data, ecdsa_arg->data_size) <= 0) {
+        fprintf(stderr, "EVP_DigestSignUpdate failed for %s\n", ecdsa_arg->curve_name);
         ERR_print_errors_fp(stderr);
         EVP_MD_CTX_free(ctx);
         return;
     }
+    if (EVP_DigestSignFinal(ctx, NULL, &sig_len) <= 0) {
+        fprintf(stderr, "EVP_DigestSignFinal (size query) failed for %s\n", ecdsa_arg->curve_name);
+        ERR_print_errors_fp(stderr);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    unsigned char* sig = malloc(sig_len);
+    if (!sig) {
+        fprintf(stderr, "Failed to allocate signature buffer for %s\n", ecdsa_arg->curve_name);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    if (EVP_DigestSignFinal(ctx, sig, &sig_len) <= 0) {
+        fprintf(stderr, "EVP_DigestSignFinal failed for %s\n", ecdsa_arg->curve_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    free(sig);
     EVP_MD_CTX_free(ctx);
 }
 
@@ -222,8 +241,6 @@ static void ecdsa_verify_func(void* arg) {
         ERR_print_errors_fp(stderr);
         return;
     }
-    size_t sig_len;
-    unsigned char sig[160];
     // Seed RNG explicitly
     unsigned char seed[32];
     if (RAND_bytes(seed, 32) <= 0) {
@@ -233,20 +250,63 @@ static void ecdsa_verify_func(void* arg) {
         return;
     }
     RAND_seed(seed, 32);
-    if (EVP_DigestSignInit(ctx, NULL, ecdsa_arg->digest, NULL, ecdsa_arg->pkey) <= 0 ||
-        EVP_DigestSign(ctx, sig, &sig_len, ecdsa_arg->data, ecdsa_arg->data_size) <= 0) {
-        fprintf(stderr, "EVP_DigestSign failed for %s in verify setup\n", ecdsa_arg->curve_name);
+    // Generate signature
+    size_t sig_len;
+    unsigned char* sig = NULL;
+    if (EVP_DigestSignInit(ctx, NULL, ecdsa_arg->digest, NULL, ecdsa_arg->pkey) <= 0) {
+        fprintf(stderr, "EVP_DigestSignInit failed for %s in verify setup\n", ecdsa_arg->curve_name);
         ERR_print_errors_fp(stderr);
         EVP_MD_CTX_free(ctx);
         return;
     }
-    if (EVP_DigestVerifyInit(ctx, NULL, ecdsa_arg->digest, NULL, ecdsa_arg->pkey) <= 0 ||
-        EVP_DigestVerify(ctx, sig, sig_len, ecdsa_arg->data, ecdsa_arg->data_size) <= 0) {
-        fprintf(stderr, "EVP_DigestVerify failed for %s\n", ecdsa_arg->curve_name);
+    if (EVP_DigestSignUpdate(ctx, ecdsa_arg->data, ecdsa_arg->data_size) <= 0) {
+        fprintf(stderr, "EVP_DigestSignUpdate failed for %s in verify setup\n", ecdsa_arg->curve_name);
         ERR_print_errors_fp(stderr);
         EVP_MD_CTX_free(ctx);
         return;
     }
+    if (EVP_DigestSignFinal(ctx, NULL, &sig_len) <= 0) {
+        fprintf(stderr, "EVP_DigestSignFinal (size query) failed for %s in verify setup\n", ecdsa_arg->curve_name);
+        ERR_print_errors_fp(stderr);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    sig = malloc(sig_len);
+    if (!sig) {
+        fprintf(stderr, "Failed to allocate signature buffer for %s in verify setup\n", ecdsa_arg->curve_name);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    if (EVP_DigestSignFinal(ctx, sig, &sig_len) <= 0) {
+        fprintf(stderr, "EVP_DigestSignFinal failed for %s in verify setup\n", ecdsa_arg->curve_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    // Verify signature
+    if (EVP_DigestVerifyInit(ctx, NULL, ecdsa_arg->digest, NULL, ecdsa_arg->pkey) <= 0) {
+        fprintf(stderr, "EVP_DigestVerifyInit failed for %s\n", ecdsa_arg->curve_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    if (EVP_DigestVerifyUpdate(ctx, ecdsa_arg->data, ecdsa_arg->data_size) <= 0) {
+        fprintf(stderr, "EVP_DigestVerifyUpdate failed for %s\n", ecdsa_arg->curve_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    if (EVP_DigestVerifyFinal(ctx, sig, sig_len) <= 0) {
+        fprintf(stderr, "EVP_DigestVerifyFinal failed for %s\n", ecdsa_arg->curve_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    free(sig);
     EVP_MD_CTX_free(ctx);
 }
 
