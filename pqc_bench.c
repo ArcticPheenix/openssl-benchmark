@@ -10,9 +10,36 @@ static int get_pqc_signature_size(const char* algo_name) {
     if (strcmp(algo_name, "ML-DSA-65") == 0) return 3293;
     if (strcmp(algo_name, "ML-DSA-87") == 0) return 4627;
     if (strcmp(algo_name, "SLH-DSA-SHA2-128s") == 0) return 7856;
+    if (strcmp(algo_name, "SLH-DSA-SHA2-128f") == 0) return 4960;
     if (strcmp(algo_name, "SLH-DSA-SHA2-192s") == 0) return 16224;
+    if (strcmp(algo_name, "SLH-DSA-SHA2-192f") == 0) return 10208;
     if (strcmp(algo_name, "SLH-DSA-SHA2-256s") == 0) return 29792;
+    if (strcmp(algo_name, "SLH-DSA-SHA2-256f") == 0) return 18816;
+    if (strcmp(algo_name, "SLH-DSA-SHAKE-128s") == 0) return 7888;
+    if (strcmp(algo_name, "SLH-DSA-SHAKE-128f") == 0) return 4984;
+    if (strcmp(algo_name, "SLH-DSA-SHAKE-192s") == 0) return 16240;
+    if (strcmp(algo_name, "SLH-DSA-SHAKE-192f") == 0) return 10232;
+    if (strcmp(algo_name, "SLH-DSA-SHAKE-256s") == 0) return 29824;
+    if (strcmp(algo_name, "SLH-DSA-SHAKE-256f") == 0) return 18848;
     return 0;
+}
+
+static int is_valid_pqc_algo(const char* algo_name) {
+    return (strcmp(algo_name, "ML-DSA-44") == 0 ||
+            strcmp(algo_name, "ML-DSA-65") == 0 ||
+            strcmp(algo_name, "ML-DSA-87") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHA2-128s") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHA2-128f") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHA2-192s") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHA2-192f") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHA2-256s") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHA2-256f") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHAKE-128s") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHAKE-128f") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHAKE-192s") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHAKE-192f") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHAKE-256s") == 0 ||
+            strcmp(algo_name, "SLH-DSA-SHAKE-256f") == 0);
 }
 
 static void pqc_keygen_func(void* arg) {
@@ -27,7 +54,7 @@ static void pqc_keygen_func(void* arg) {
 }
 
 void bench_pqc_keygen(const char* algo_name, int iterations, BenchmarkResult* result) {
-    if (get_pqc_signature_size(algo_name) == 0) {
+    if (!is_valid_pqc_algo(algo_name)) {
         fprintf(stderr, "Invalid PQC algorithm: %s\n", algo_name);
         return;
     }
@@ -43,18 +70,43 @@ static void pqc_sign_func(void* arg) {
         ERR_print_errors_fp(stderr);
         return;
     }
-    size_t sig_len = get_pqc_signature_size(pqc_arg->algo_name);
-    unsigned char sig[30000]; // Max for SLH-DSA-256s
-    if (EVP_DigestSignInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0 ||
-        EVP_DigestSign(ctx, sig, &sig_len, pqc_arg->data, pqc_arg->data_size) <= 0) {
+    size_t sig_len;
+    unsigned char* sig = malloc(get_pqc_signature_size(pqc_arg->algo_name));
+    if (!sig) {
+        fprintf(stderr, "Failed to allocate signature buffer for %s\n", pqc_arg->algo_name);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    // Seed RNG explicitly
+    unsigned char seed[32];
+    if (RAND_bytes(seed, 32) <= 0) {
+        fprintf(stderr, "RAND_bytes failed for seeding in %s\n", pqc_arg->algo_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    RAND_seed(seed, 32);
+    if (EVP_DigestSignInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0) {
+        fprintf(stderr, "EVP_DigestSignInit failed for %s\n", pqc_arg->algo_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    if (EVP_DigestSign(ctx, sig, &sig_len, pqc_arg->data, pqc_arg->data_size) <= 0) {
         fprintf(stderr, "EVP_DigestSign failed for %s\n", pqc_arg->algo_name);
         ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
     }
+    free(sig);
     EVP_MD_CTX_free(ctx);
 }
 
 void bench_pqc_sign(const char* algo_name, int data_size, int iterations, BenchmarkResult* result) {
-    if (get_pqc_signature_size(algo_name) == 0) {
+    if (!is_valid_pqc_algo(algo_name)) {
         fprintf(stderr, "Invalid PQC algorithm: %s\n", algo_name);
         return;
     }
@@ -93,25 +145,57 @@ static void pqc_verify_func(void* arg) {
         ERR_print_errors_fp(stderr);
         return;
     }
-    size_t sig_len = get_pqc_signature_size(pqc_arg->algo_name);
-    unsigned char sig[30000];
-    if (EVP_DigestSignInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0 ||
-        EVP_DigestSign(ctx, sig, &sig_len, pqc_arg->data, pqc_arg->data_size) <= 0) {
-        fprintf(stderr, "EVP_DigestSign failed for %s in verify\n", pqc_arg->algo_name);
-        ERR_print_errors_fp(stderr);
+    size_t sig_len;
+    unsigned char* sig = malloc(get_pqc_signature_size(pqc_arg->algo_name));
+    if (!sig) {
+        fprintf(stderr, "Failed to allocate signature buffer for %s\n", pqc_arg->algo_name);
         EVP_MD_CTX_free(ctx);
         return;
     }
-    if (EVP_DigestVerifyInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0 ||
-        EVP_DigestVerify(ctx, sig, sig_len, pqc_arg->data, pqc_arg->data_size) <= 0) {
+    // Seed RNG explicitly
+    unsigned char seed[32];
+    if (RAND_bytes(seed, 32) <= 0) {
+        fprintf(stderr, "RAND_bytes failed for seeding in %s\n", pqc_arg->algo_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    RAND_seed(seed, 32);
+    if (EVP_DigestSignInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0) {
+        fprintf(stderr, "EVP_DigestSignInit failed for %s in verify\n", pqc_arg->algo_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    if (EVP_DigestSign(ctx, sig, &sig_len, pqc_arg->data, pqc_arg->data_size) <= 0) {
+        fprintf(stderr, "EVP_DigestSign failed for %s in verify\n", pqc_arg->algo_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    if (EVP_DigestVerifyInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0) {
+        fprintf(stderr, "EVP_DigestVerifyInit failed for %s\n", pqc_arg->algo_name);
+        ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    if (EVP_DigestVerify(ctx, sig, sig_len, pqc_arg->data, pqc_arg->data_size) <= 0) {
         fprintf(stderr, "EVP_DigestVerify failed for %s\n", pqc_arg->algo_name);
         ERR_print_errors_fp(stderr);
+        free(sig);
+        EVP_MD_CTX_free(ctx);
+        return;
     }
+    free(sig);
     EVP_MD_CTX_free(ctx);
 }
 
 void bench_pqc_verify(const char* algo_name, int data_size, int iterations, BenchmarkResult* result) {
-    if (get_pqc_signature_size(algo_name) == 0) {
+    if (!is_valid_pqc_algo(algo_name)) {
         fprintf(stderr, "Invalid PQC algorithm: %s\n", algo_name);
         return;
     }
