@@ -27,26 +27,12 @@ static void ed25519_sign_func(void* arg) {
         ERR_print_errors_fp(stderr);
         return;
     }
-    size_t sig_len;
-    unsigned char sig[64]; // Ed25519 signatures are 64 bytes
+    size_t sig_len = 64; // Fixed for Ed25519
+    unsigned char sig[64];
     if (EVP_DigestSignInit(ctx, NULL, NULL, NULL, ed25519_arg->pkey) <= 0 ||
-        EVP_DigestSignUpdate(ctx, ed25519_arg->data, ed25519_arg->data_size) <= 0 ||
-        EVP_DigestSignFinal(ctx, NULL, &sig_len) <= 0) {
-        fprintf(stderr, "EVP_DigestSign setup failed for Ed25519\n");
+        EVP_DigestSign(ctx, sig, &sig_len, ed25519_arg->data, ed25519_arg->data_size) <= 0) {
+        fprintf(stderr, "EVP_DigestSign failed for Ed25519\n");
         ERR_print_errors_fp(stderr);
-        EVP_MD_CTX_free(ctx);
-        return;
-    }
-    if (sig_len > 64) {
-        fprintf(stderr, "Signature size %zu exceeds 64 bytes for Ed25519\n", sig_len);
-        EVP_MD_CTX_free(ctx);
-        return;
-    }
-    if (EVP_DigestSignFinal(ctx, sig, &sig_len) <= 0) {
-        fprintf(stderr, "EVP_DigestSignFinal failed for Ed25519\n");
-        ERR_print_errors_fp(stderr);
-        EVP_MD_CTX_free(ctx);
-        return;
     }
     EVP_MD_CTX_free(ctx);
 }
@@ -91,34 +77,19 @@ static void ed25519_verify_func(void* arg) {
         ERR_print_errors_fp(stderr);
         return;
     }
-    size_t sig_len;
+    size_t sig_len = 64;
     unsigned char sig[64];
     if (EVP_DigestSignInit(ctx, NULL, NULL, NULL, ed25519_arg->pkey) <= 0 ||
-        EVP_DigestSignUpdate(ctx, ed25519_arg->data, ed25519_arg->data_size) <= 0 ||
-        EVP_DigestSignFinal(ctx, NULL, &sig_len) <= 0) {
-        fprintf(stderr, "EVP_DigestSign setup failed for Ed25519 in verify\n");
-        ERR_print_errors_fp(stderr);
-        EVP_MD_CTX_free(ctx);
-        return;
-    }
-    if (sig_len > 64) {
-        fprintf(stderr, "Signature size %zu exceeds 64 bytes for Ed25519 in verify\n", sig_len);
-        EVP_MD_CTX_free(ctx);
-        return;
-    }
-    if (EVP_DigestSignFinal(ctx, sig, &sig_len) <= 0) {
-        fprintf(stderr, "EVP_DigestSignFinal failed for Ed25519 in verify\n");
+        EVP_DigestSign(ctx, sig, &sig_len, ed25519_arg->data, ed25519_arg->data_size) <= 0) {
+        fprintf(stderr, "EVP_DigestSign failed for Ed25519 in verify\n");
         ERR_print_errors_fp(stderr);
         EVP_MD_CTX_free(ctx);
         return;
     }
     if (EVP_DigestVerifyInit(ctx, NULL, NULL, NULL, ed25519_arg->pkey) <= 0 ||
-        EVP_DigestVerifyUpdate(ctx, ed25519_arg->data, ed25519_arg->data_size) <= 0 ||
-        EVP_DigestVerifyFinal(ctx, sig, sig_len) <= 0) {
+        EVP_DigestVerify(ctx, sig, sig_len, ed25519_arg->data, ed25519_arg->data_size) <= 0) {
         fprintf(stderr, "EVP_DigestVerify failed for Ed25519\n");
         ERR_print_errors_fp(stderr);
-        EVP_MD_CTX_free(ctx);
-        return;
     }
     EVP_MD_CTX_free(ctx);
 }
