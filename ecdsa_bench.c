@@ -3,6 +3,7 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #include <openssl/objects.h>
+#include <openssl/ec.h> // Added for EVP_PKEY_CTX_set_ec_paramgen_curve_nid
 #include <stdlib.h>
 #include <string.h>
 

@@ -6,7 +6,7 @@
 typedef struct {
     double avg_time_ms;
     double ops_per_sec;
-    double std_dev_us;
+    double std_dev_us; // Standard deviation in microseconds
     double min_time_ms;
     double max_time_ms;
     int iterations;
