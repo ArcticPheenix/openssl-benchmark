@@ -12,13 +12,13 @@ void print_help(char* prog_name) {
            "--csv\tOutput in CSV format\n"
            "--key-size N\tRSA key bits (default 2048)\n"
            "--curve STR\tECDSA/Ed25519 curve (P-256, P-384, P-521, ed25519)\n"
-           "--pqc-algo STR\tPQC algorithm (ML-DSA-44, ML-DSA-65, ML-DSA-87, SLH-DSA-SHA2-128s, SLH-DSA-SHA2-192s, SLH-DSA-SHA2-256s)\n"
+           "--pqc-algo STR\tPQC algorithm (ML-DSA-44, ML-DSA-65, ML-DSA-87)\n"
            "--iterations N\tRuns (default 100)\n"
            "--operation STR\tsupported operations:\n"
            "\trsa-keygen/rsa-sign/rsa-verify (RSA)\n"
            "\tecdsa-keygen/ecdsa-sign/ecdsa-verify (ECDSA)\n"
            "\ted25519-keygen/ed25519-sign/ed25519-verify (Ed25519)\n"
-           "\tpqc-keygen/pqc-sign/pqc-verify (ML-DSA/SLH-DSA)\n"
+           "\tpqc-keygen/pqc-sign/pqc-verify (ML-DSA)\n"
            "--data-size N\tBytes for sign/verify (default 1024)\n", prog_name);
 }
 

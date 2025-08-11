@@ -23,7 +23,9 @@ void time_per_iteration(void (*func)(void*), void* arg, int iterations, Benchmar
     }
 
     // Warm-up phase
-    for (int i = 0; i < 20; i++) func(arg);
+    if (iterations > 1) {
+        for (int i = 0; i < 20; i++) func(arg);
+    }
 
     // Timing phase for each iteration
     struct timespec start, end;

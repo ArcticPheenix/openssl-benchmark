@@ -2,6 +2,7 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#include <openssl/provider.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,37 +10,11 @@ static int get_pqc_signature_size(const char* algo_name) {
     if (strcmp(algo_name, "ML-DSA-44") == 0) return 2420;
     if (strcmp(algo_name, "ML-DSA-65") == 0) return 3293;
     if (strcmp(algo_name, "ML-DSA-87") == 0) return 4627;
-    if (strcmp(algo_name, "SLH-DSA-SHA2-128s") == 0) return 7856;
-    if (strcmp(algo_name, "SLH-DSA-SHA2-128f") == 0) return 4960;
-    if (strcmp(algo_name, "SLH-DSA-SHA2-192s") == 0) return 16224;
-    if (strcmp(algo_name, "SLH-DSA-SHA2-192f") == 0) return 10208;
-    if (strcmp(algo_name, "SLH-DSA-SHA2-256s") == 0) return 29792;
-    if (strcmp(algo_name, "SLH-DSA-SHA2-256f") == 0) return 18816;
-    if (strcmp(algo_name, "SLH-DSA-SHAKE-128s") == 0) return 7888;
-    if (strcmp(algo_name, "SLH-DSA-SHAKE-128f") == 0) return 4984;
-    if (strcmp(algo_name, "SLH-DSA-SHAKE-192s") == 0) return 16240;
-    if (strcmp(algo_name, "SLH-DSA-SHAKE-192f") == 0) return 10232;
-    if (strcmp(algo_name, "SLH-DSA-SHAKE-256s") == 0) return 29824;
-    if (strcmp(algo_name, "SLH-DSA-SHAKE-256f") == 0) return 18848;
     return 0;
 }
 
 static int is_valid_pqc_algo(const char* algo_name) {
-    return (strcmp(algo_name, "ML-DSA-44") == 0 ||
-            strcmp(algo_name, "ML-DSA-65") == 0 ||
-            strcmp(algo_name, "ML-DSA-87") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHA2-128s") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHA2-128f") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHA2-192s") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHA2-192f") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHA2-256s") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHA2-256f") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHAKE-128s") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHAKE-128f") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHAKE-192s") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHAKE-192f") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHAKE-256s") == 0 ||
-            strcmp(algo_name, "SLH-DSA-SHAKE-256f") == 0);
+    return get_pqc_signature_size(algo_name) > 0;
 }
 
 static void pqc_keygen_func(void* arg) {
@@ -70,10 +45,10 @@ static void pqc_sign_func(void* arg) {
         ERR_print_errors_fp(stderr);
         return;
     }
-    size_t sig_len;
-    unsigned char* sig = malloc(get_pqc_signature_size(pqc_arg->algo_name));
+    size_t sig_len = get_pqc_signature_size(pqc_arg->algo_name);
+    unsigned char* sig = malloc(sig_len);
     if (!sig) {
-        fprintf(stderr, "Failed to allocate signature buffer for %s\n", pqc_arg->algo_name);
+        fprintf(stderr, "Failed to allocate signature buffer for %s (size %zu)\n", pqc_arg->algo_name, sig_len);
         EVP_MD_CTX_free(ctx);
         return;
     }
@@ -87,6 +62,7 @@ static void pqc_sign_func(void* arg) {
         return;
     }
     RAND_seed(seed, 32);
+    ERR_clear_error(); // Clear error queue
     if (EVP_DigestSignInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0) {
         fprintf(stderr, "EVP_DigestSignInit failed for %s\n", pqc_arg->algo_name);
         ERR_print_errors_fp(stderr);
@@ -110,16 +86,47 @@ void bench_pqc_sign(const char* algo_name, int data_size, int iterations, Benchm
         fprintf(stderr, "Invalid PQC algorithm: %s\n", algo_name);
         return;
     }
-    EVP_PKEY* pkey = EVP_PKEY_Q_keygen(NULL, NULL, algo_name);
+    OSSL_LIB_CTX* libctx = OSSL_LIB_CTX_new();
+    if (!libctx) {
+        fprintf(stderr, "Failed to create OSSL_LIB_CTX for %s\n", algo_name);
+        return;
+    }
+    OSSL_PROVIDER* defprov = OSSL_PROVIDER_load(libctx, "default");
+    if (!defprov) {
+        fprintf(stderr, "Failed to load default provider for %s\n", algo_name);
+        OSSL_LIB_CTX_free(libctx);
+        return;
+    }
+    EVP_PKEY* pkey = EVP_PKEY_Q_keygen(libctx, NULL, algo_name);
     if (pkey == NULL) {
         fprintf(stderr, "Failed to generate PQC key for %s\n", algo_name);
         ERR_print_errors_fp(stderr);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
+        return;
+    }
+    // Validate key
+    int key_bits = EVP_PKEY_get_bits(pkey);
+    if (key_bits <= 0) {
+        fprintf(stderr, "Invalid key size for %s: %d bits\n", algo_name, key_bits);
+        EVP_PKEY_free(pkey);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
+        return;
+    }
+    if (!EVP_PKEY_can_sign(pkey)) {
+        fprintf(stderr, "Key for %s cannot be used for signing\n", algo_name);
+        EVP_PKEY_free(pkey);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
         return;
     }
     unsigned char* data = malloc(data_size);
     if (data == NULL) {
         fprintf(stderr, "Memory allocation failed\n");
         EVP_PKEY_free(pkey);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
         return;
     }
     if (RAND_bytes(data, data_size) <= 0) {
@@ -127,6 +134,8 @@ void bench_pqc_sign(const char* algo_name, int data_size, int iterations, Benchm
         ERR_print_errors_fp(stderr);
         free(data);
         EVP_PKEY_free(pkey);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
         return;
     }
 
@@ -135,6 +144,8 @@ void bench_pqc_sign(const char* algo_name, int data_size, int iterations, Benchm
 
     free(data);
     EVP_PKEY_free(pkey);
+    OSSL_PROVIDER_unload(defprov);
+    OSSL_LIB_CTX_free(libctx);
 }
 
 static void pqc_verify_func(void* arg) {
@@ -145,10 +156,10 @@ static void pqc_verify_func(void* arg) {
         ERR_print_errors_fp(stderr);
         return;
     }
-    size_t sig_len;
-    unsigned char* sig = malloc(get_pqc_signature_size(pqc_arg->algo_name));
+    size_t sig_len = get_pqc_signature_size(pqc_arg->algo_name);
+    unsigned char* sig = malloc(sig_len);
     if (!sig) {
-        fprintf(stderr, "Failed to allocate signature buffer for %s\n", pqc_arg->algo_name);
+        fprintf(stderr, "Failed to allocate signature buffer for %s (size %zu)\n", pqc_arg->algo_name, sig_len);
         EVP_MD_CTX_free(ctx);
         return;
     }
@@ -162,6 +173,7 @@ static void pqc_verify_func(void* arg) {
         return;
     }
     RAND_seed(seed, 32);
+    ERR_clear_error(); // Clear error queue
     if (EVP_DigestSignInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0) {
         fprintf(stderr, "EVP_DigestSignInit failed for %s in verify\n", pqc_arg->algo_name);
         ERR_print_errors_fp(stderr);
@@ -176,6 +188,7 @@ static void pqc_verify_func(void* arg) {
         EVP_MD_CTX_free(ctx);
         return;
     }
+    ERR_clear_error(); // Clear error queue
     if (EVP_DigestVerifyInit(ctx, NULL, NULL, NULL, pqc_arg->pkey) <= 0) {
         fprintf(stderr, "EVP_DigestVerifyInit failed for %s\n", pqc_arg->algo_name);
         ERR_print_errors_fp(stderr);
@@ -199,16 +212,47 @@ void bench_pqc_verify(const char* algo_name, int data_size, int iterations, Benc
         fprintf(stderr, "Invalid PQC algorithm: %s\n", algo_name);
         return;
     }
-    EVP_PKEY* pkey = EVP_PKEY_Q_keygen(NULL, NULL, algo_name);
+    OSSL_LIB_CTX* libctx = OSSL_LIB_CTX_new();
+    if (!libctx) {
+        fprintf(stderr, "Failed to create OSSL_LIB_CTX for %s\n", algo_name);
+        return;
+    }
+    OSSL_PROVIDER* defprov = OSSL_PROVIDER_load(libctx, "default");
+    if (!defprov) {
+        fprintf(stderr, "Failed to load default provider for %s\n", algo_name);
+        OSSL_LIB_CTX_free(libctx);
+        return;
+    }
+    EVP_PKEY* pkey = EVP_PKEY_Q_keygen(libctx, NULL, algo_name);
     if (pkey == NULL) {
         fprintf(stderr, "Failed to generate PQC key for %s\n", algo_name);
         ERR_print_errors_fp(stderr);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
+        return;
+    }
+    // Validate key
+    int key_bits = EVP_PKEY_get_bits(pkey);
+    if (key_bits <= 0) {
+        fprintf(stderr, "Invalid key size for %s: %d bits\n", algo_name, key_bits);
+        EVP_PKEY_free(pkey);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
+        return;
+    }
+    if (!EVP_PKEY_can_sign(pkey)) {
+        fprintf(stderr, "Key for %s cannot be used for signing\n", algo_name);
+        EVP_PKEY_free(pkey);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
         return;
     }
     unsigned char* data = malloc(data_size);
     if (data == NULL) {
         fprintf(stderr, "Memory allocation failed\n");
         EVP_PKEY_free(pkey);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
         return;
     }
     if (RAND_bytes(data, data_size) <= 0) {
@@ -216,6 +260,8 @@ void bench_pqc_verify(const char* algo_name, int data_size, int iterations, Benc
         ERR_print_errors_fp(stderr);
         free(data);
         EVP_PKEY_free(pkey);
+        OSSL_PROVIDER_unload(defprov);
+        OSSL_LIB_CTX_free(libctx);
         return;
     }
 
@@ -224,4 +270,6 @@ void bench_pqc_verify(const char* algo_name, int data_size, int iterations, Benc
 
     free(data);
     EVP_PKEY_free(pkey);
+    OSSL_PROVIDER_unload(defprov);
+    OSSL_LIB_CTX_free(libctx);
 }
