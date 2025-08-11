@@ -48,9 +48,9 @@ void time_per_iteration(void (*func)(void*), void* arg, int iterations, Benchmar
     result->max_time_ms = max / 1e6; // Convert from ns to ms
     if (iterations > 1) {
         double mean = sum / iterations;
-        result->std_dev_ms = sqrt((sum_squares / iterations - mean * mean) / (iterations - 1)) / 1e6;
+        result->std_dev_us = sqrt((sum_squares / iterations - mean * mean) / (iterations - 1)) / 1e3; // ns to µs
     } else {
-        result->std_dev_ms = 0.0; // No standard deviation for a single iteration
+        result->std_dev_us = 0.0; // No standard deviation for a single iteration
     }
     free(deltas);
 }
@@ -77,7 +77,7 @@ void time_total_delta(void (*func)(void*), void* arg, int iterations, BenchmarkR
     result->iterations = iterations;
     result->avg_time_ms = total_ns / iterations / 1e6; // ns to ms
     result->ops_per_sec = iterations / (total_ns / 1e9); // ops per second
-    result->std_dev_ms = 0; // Not available
+    result->std_dev_us = 0; // Not available
     result->min_time_ms = 0; // Not available
     result->max_time_ms = 0; // Not available
 }

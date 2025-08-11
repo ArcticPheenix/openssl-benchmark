@@ -10,7 +10,7 @@ void print_help(char* prog_name) {
            "--key-size N\tRSA key bits (default 2048)\n"
            "--curve STR\tECDSA curve (P-256, P-384, P-521)\n"
            "--iterations N\tRuns (default 100)\n"
-           "--operation STR\tkeygen/sign/verify (RSA) or ecdsa-keygen/ecdsa-sign/ecdsa-verify (ECDSA)\n"
+           "--operation STR\trsa-keygen/rsa-sign/rsa-verify (RSA) or ecdsa-keygen/ecdsa-sign/ecdsa-verify (ECDSA)\n"
            "--data-size N\tBytes for sign/verify (default 1024)\n", prog_name);
 }
 
@@ -52,21 +52,21 @@ int main(int argc, char* argv[]) {
     }
 
     BenchmarkResult result = {0};
-    if (strcmp(operation, "keygen") == 0) {
+    if (strcmp(operation, "rsa-keygen") == 0) {
         bench_keygen(key_size, iterations, &result);
-        printf("%s (%d-bit, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f ms, Min %.2f ms, Max %.2f ms\n",
+        printf("%s (%d-bit, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f µs, Min %.2f ms, Max %.2f ms\n",
                operation, key_size, result.iterations, result.avg_time_ms, result.ops_per_sec,
-               result.std_dev_ms, result.min_time_ms, result.max_time_ms);
-    } else if (strcmp(operation, "sign") == 0) {
+               result.std_dev_us, result.min_time_ms, result.max_time_ms);
+    } else if (strcmp(operation, "rsa-sign") == 0) {
         bench_sign(key_size, data_size, iterations, &result);
-        printf("%s (%d-bit, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f ms, Min %.2f ms, Max %.2f ms\n",
+        printf("%s (%d-bit, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f µs, Min %.2f ms, Max %.2f ms\n",
                operation, key_size, result.iterations, result.avg_time_ms, result.ops_per_sec,
-               result.std_dev_ms, result.min_time_ms, result.max_time_ms);
-    } else if (strcmp(operation, "verify") == 0) {
+               result.std_dev_us, result.min_time_ms, result.max_time_ms);
+    } else if (strcmp(operation, "rsa-verify") == 0) {
         bench_verify(key_size, data_size, iterations, &result);
-        printf("%s (%d-bit, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f ms, Min %.2f ms, Max %.2f ms\n",
+        printf("%s (%d-bit, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f µs, Min %.2f ms, Max %.2f ms\n",
                operation, key_size, result.iterations, result.avg_time_ms, result.ops_per_sec,
-               result.std_dev_ms, result.min_time_ms, result.max_time_ms);
+               result.std_dev_us, result.min_time_ms, result.max_time_ms);
     } else if (strcmp(operation, "ecdsa-keygen") == 0) {
         if (!curve) {
             fprintf(stderr, "Missing --curve for ECDSA\n");
@@ -74,9 +74,9 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         bench_ecdsa_keygen(curve, iterations, &result);
-        printf("%s (%s, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f ms, Min %.2f ms, Max %.2f ms\n",
+        printf("%s (%s, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f µs, Min %.2f ms, Max %.2f ms\n",
                operation, curve, result.iterations, result.avg_time_ms, result.ops_per_sec,
-               result.std_dev_ms, result.min_time_ms, result.max_time_ms);
+               result.std_dev_us, result.min_time_ms, result.max_time_ms);
     } else if (strcmp(operation, "ecdsa-sign") == 0) {
         if (!curve) {
             fprintf(stderr, "Missing --curve for ECDSA\n");
@@ -92,9 +92,9 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         bench_ecdsa_sign(curve, digest, data_size, iterations, &result);
-        printf("%s (%s, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f ms, Min %.2f ms, Max %.2f ms\n",
+        printf("%s (%s, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f µs, Min %.2f ms, Max %.2f ms\n",
                operation, curve, result.iterations, result.avg_time_ms, result.ops_per_sec,
-               result.std_dev_ms, result.min_time_ms, result.max_time_ms);
+               result.std_dev_us, result.min_time_ms, result.max_time_ms);
     } else if (strcmp(operation, "ecdsa-verify") == 0) {
         if (!curve) {
             fprintf(stderr, "Missing --curve for ECDSA\n");
@@ -110,9 +110,9 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         bench_ecdsa_verify(curve, digest, data_size, iterations, &result);
-        printf("%s (%s, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f ms, Min %.2f ms, Max %.2f ms\n",
+        printf("%s (%s, %d iterations): Avg %.2f ms, Ops/s: %.2f, StdDev %.2f µs, Min %.2f ms, Max %.2f ms\n",
                operation, curve, result.iterations, result.avg_time_ms, result.ops_per_sec,
-               result.std_dev_ms, result.min_time_ms, result.max_time_ms);
+               result.std_dev_us, result.min_time_ms, result.max_time_ms);
     } else {
         fprintf(stderr, "Invalid operation: %s\n", operation);
         return 1;
